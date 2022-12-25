@@ -108,8 +108,8 @@ def main(args):
         train_log = train(model, train_loader, optimizer, epoch, accelerator)
         valid_log = valid(model, valid_loader, epoch, accelerator)
         log_dict[f'Epoch {epoch}'] = {
-            'train_loss': train_log,
-            'valid_loss': valid_log
+            'train_log': train_log,
+            'valid_log': valid_log
         }
         accelerator.wait_for_everyone()
         if accelerator.is_main_process:
