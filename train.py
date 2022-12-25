@@ -72,7 +72,7 @@ def main(args):
 
     config = json.load(open(os.path.join(args.restore_dir, 'my_config.json'))) if args.restore_dir else dict()
     model_id = config.get('model_id', args.model_id)
-    current_epoch = config.get('epoch', 0)
+    current_epoch = config.get('current_epoch', 0)
     min_valid_loss = config.get('min_valid_loss', float('inf'))
     seed = config.get('seed', args.seed)
     max_len = config.get('max_len', args.max_len)
@@ -118,7 +118,7 @@ def main(args):
                 min_valid_loss = valid_log['loss']
                 config_dict = {
                     'model_id': model_id,
-                    'epoch': epoch,
+                    'current_epoch': epoch,
                     'min_valid_loss': min_valid_loss,
                     'seed': args.seed,
                     'argparse': args.__dict__
@@ -132,7 +132,7 @@ def main(args):
         accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'last'))
         config_dict = {
             'model_id': model_id,
-            'epoch': epoch,
+            'current_epoch': epoch,
             'min_valid_loss': min_valid_loss,
             'seed': args.seed,
             'argparse': args.__dict__
