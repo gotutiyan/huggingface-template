@@ -169,6 +169,12 @@ def get_parser():
     parser.add_argument('--accumulation', type=int, default=4)
     parser.add_argument('--seed', type=int, default=5)
     parser.add_argument('--restore_dir', default=None)
+    parser.add_argument('--num_warmup_steps', type=int, default=500)
+    parser.add_argument(
+        "--lr_scheduler_type",
+        default="constant",
+        choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+    )
 
 
     args = parser.parse_args()
