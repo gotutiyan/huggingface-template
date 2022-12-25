@@ -1,7 +1,6 @@
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 import torch
 import torch.nn as nn
-from torch.nn import CrossEntropyLoss, CosineEmbeddingLoss, MSELoss
 from dataclasses import dataclass
 from typing import Optional, Tuple
 import torch
@@ -15,20 +14,27 @@ class ModelOutput:
     logits: torch.Tensor = None
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, model_id: str) -> None:
         super().__init__()
+        self.model = AutoModel.from_pretrained(model_id)
+        config = AutoConfig.from_pretrained(model_id)
 
-    def forward(self) -> ModelOutput:
-        
-        return ModelOutput()
+    def forward(self, batch: dict) -> ModelOutput:
+        outputs = self.model(**batch)
+        return ModelOutput(
+            outputs.loss,
+            outputs.logits
+        )
 
-    def save_pretrained(self, path: str='model/') -> None:
-        torch.save(self.state_dict(), os.path.join(path, 'pytorch_model.bin'))
+    def save_pretrained(self, dir: str) -> None:
+        torch.save(self.state_dict(), os.path.join(dir, 'pytorch_model.bin'))
     
     @classmethod
-    def from_pretrained(cls, restore_dir: str) -> Model:
-        config = json.load(open(os.path.join(restore_dir, 'my_config.json')))
-        return Model()
+    def from_pretrained(cls, dir: str):
+        config = json.load(open(os.path.join(dir, 'my_config.json')))
+        model = Model(config.model_id)
+        model.load_state_dict(torch.load(os.path.join(dir, 'pytorch_model.bin')))
+        return model
 
 '''
 An example of SequenceClassifier:
