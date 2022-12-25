@@ -100,6 +100,8 @@ def main(args):
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
     os.makedirs(os.path.join(args.outdir, 'best'), exist_ok=True)
     os.makedirs(os.path.join(args.outdir, 'last'), exist_ok=True)
+    tokenizer.save_pretrained(os.path.join(args.outdir, 'best'))
+    tokenizer.save_pretrained(os.path.join(args.outdir, 'last'))
     accelerator = Accelerator(gradient_accumulation_steps=args.accumulation)
     model, optimizer, train_loader, valid_loader = accelerator.prepare(
         model, optimizer, train_loader, valid_loader
