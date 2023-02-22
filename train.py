@@ -126,6 +126,7 @@ def main(args):
         accelerator.wait_for_everyone()
         if accelerator.is_main_process:
             if min_valid_loss > valid_log['loss']:
+                # Save the best chckpoint
                 accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'best'))
                 min_valid_loss = valid_log['loss']
                 config_dict = {
@@ -137,21 +138,20 @@ def main(args):
                 }
                 with open(os.path.join(args.outdir, 'best/my_config.json'), 'w') as fp:
                     json.dump(config_dict, fp, indent=4)
+            # Save checkpoint as the last checkpoint for each epoch
+            accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'last'))
+            config_dict = {
+                'model_id': model_id,
+                'current_epoch': epoch,
+                'min_valid_loss': min_valid_loss,
+                'seed': args.seed,
+                'argparse': args.__dict__
+            }
+            with open(os.path.join(args.outdir, 'last/my_config.json'), 'w') as fp:
+                json.dump(config_dict, fp, indent=4)
             with open(os.path.join(args.outdir, 'log.json'), 'w') as fp:
                 json.dump(log_dict, fp, indent=4)
-    accelerator.wait_for_everyone()
-    if accelerator.is_main_process:
-        accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'last'))
-        config_dict = {
-            'model_id': model_id,
-            'current_epoch': epoch,
-            'min_valid_loss': min_valid_loss,
-            'seed': args.seed,
-            'argparse': args.__dict__
-        }
-        with open(os.path.join(args.outdir, 'last/my_config.json'), 'w') as fp:
-            json.dump(config_dict, fp, indent=4)
-        print('Finish')
+    print('Finish')
 
 def get_parser():
     parser = argparse.ArgumentParser()
