@@ -75,7 +75,7 @@ def main(args):
 
     config = json.load(open(os.path.join(args.restore_dir, 'my_config.json'))) if args.restore_dir else dict()
     model_id = config.get('model_id', args.model_id)
-    current_epoch = config.get('current_epoch', 0)
+    current_epoch = config.get('current_epoch', -1) + 1
     min_valid_loss = config.get('min_valid_loss', float('inf'))
     seed = config.get('seed', args.seed)
     max_len = config.get('max_len', args.max_len)
@@ -87,8 +87,14 @@ def main(args):
     torch.backends.cudnn.deterministic = True
 
     model = Model.from_pretrained(args.restore_dir) if args.restore_dir else Model(model_id)
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(args.restore_dir) if args.restore_dir else AutoTokenizer.from_pretrained(model_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    lr_scheduler = get_scheduler(
+        name=args.lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=args.num_warmup_steps * args.accumulation,
+        num_training_steps=len(train_loader) * args.epochs,
+    )
     train_dataset = generate_dataset(
         input_file=args.train_input,
         tokenizer=tokenizer,
@@ -106,17 +112,10 @@ def main(args):
     tokenizer.save_pretrained(os.path.join(args.outdir, 'best'))
     tokenizer.save_pretrained(os.path.join(args.outdir, 'last'))
     accelerator = Accelerator(gradient_accumulation_steps=args.accumulation)
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_warmup_steps=args.num_warmup_steps * args.accumulation,
-        num_training_steps=len(train_loader) * args.epochs,
-    )
-    if args.restore_dir:
-        model.load_state_dict(torch.load(os.path.join(dir, 'lr_state.bin')))
     model, optimizer, train_loader, valid_loader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_loader, valid_loader, lr_scheduler
     )
+    accelerator.wait_for_everyone()
     for epoch in range(current_epoch, args.epochs):
         train_log = train(model, train_loader, optimizer, epoch, accelerator, lr_scheduler)
         valid_log = valid(model, valid_loader, epoch, accelerator)
@@ -127,7 +126,6 @@ def main(args):
         accelerator.wait_for_everyone()
         if accelerator.is_main_process:
             if min_valid_loss > valid_log['loss']:
-                torch.save(lr_scheduler.state_dict(), os.path.join(args.outdir, 'best/lr_state.bin'))
                 accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'best'))
                 min_valid_loss = valid_log['loss']
                 config_dict = {
@@ -143,7 +141,6 @@ def main(args):
                 json.dump(log_dict, fp, indent=4)
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
-        torch.save(lr_scheduler.state_dict(), os.path.join(args.outdir, 'last/lr_state.bin'))
         accelerator.unwrap_model(model).save_pretrained(os.path.join(args.outdir, 'last'))
         config_dict = {
             'model_id': model_id,
@@ -163,11 +160,11 @@ def get_parser():
     parser.add_argument('--model_id', default='bert-base-cased')
     parser.add_argument('--outdir', default='models/sample/')
     parser.add_argument('--lr', type=float, default=1e-5)
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--max_len', type=int, default=128)
-    parser.add_argument('--epochs', type=int, default=2)
+    parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--accumulation', type=int, default=4)
-    parser.add_argument('--seed', type=int, default=5)
+    parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--restore_dir', default=None)
     parser.add_argument('--num_warmup_steps', type=int, default=500)
     parser.add_argument(
