@@ -89,12 +89,6 @@ def main(args):
     model = Model.from_pretrained(args.restore_dir) if args.restore_dir else Model(model_id)
     tokenizer = AutoTokenizer.from_pretrained(args.restore_dir) if args.restore_dir else AutoTokenizer.from_pretrained(model_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_warmup_steps=args.num_warmup_steps * args.accumulation,
-        num_training_steps=len(train_loader) * args.epochs,
-    )
     train_dataset = generate_dataset(
         input_file=args.train_input,
         tokenizer=tokenizer,
@@ -107,6 +101,12 @@ def main(args):
     )
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    lr_scheduler = get_scheduler(
+        name=args.lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=args.num_warmup_steps * args.accumulation,
+        num_training_steps=len(train_loader) * args.epochs,
+    )
     os.makedirs(os.path.join(args.outdir, 'best'), exist_ok=True)
     os.makedirs(os.path.join(args.outdir, 'last'), exist_ok=True)
     tokenizer.save_pretrained(os.path.join(args.outdir, 'best'))
