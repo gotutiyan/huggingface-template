@@ -85,9 +85,13 @@ def main(args):
     np.random.seed(seed)
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
-
-    model = Model.from_pretrained(args.restore_dir) if args.restore_dir else Model(model_id)
-    tokenizer = AutoTokenizer.from_pretrained(args.restore_dir) if args.restore_dir else AutoTokenizer.from_pretrained(model_id)
+    
+    if args.restore_dir is not None:
+        model = Model.from_pretrained(args.restore_dir)
+        tokenizer = AutoTokenizer.from_pretrained(args.restore_dir)
+    else:
+        model = Model.from_pretrained(args.model_id)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     train_dataset = generate_dataset(
         input_file=args.train_input,
