@@ -2,7 +2,7 @@
 
 Huggingfaceで適当に何かしたいときのテンプレート．
 
-- モデルの定義とDatasetの定義を書くだけ
+- モデルの定義（およびモデルのためのコンフィグの定義）とDatasetの定義を書くだけ
 - AccelerateによるマルチGPUでの訓練に対応．
 - 継続した訓練に対応．例えば，一旦5エポック目まで訓練して保存されたモデルがあったとき，それを読み込んで，エポックや最小lossの情報を維持しながら6エポック目以降を訓練可能．
 
@@ -10,22 +10,23 @@ Huggingfaceで適当に何かしたいときのテンプレート．
 
 次の2つのファイルを自分用に書き換えたら，単純なものはほとんど実装できるはず．
 
-- `modeling.py`  
-モデルの定義を書く．モデルの`forward()`ではModelOutputクラスのインスタンスが返り値になっている．train.pyではこのクラスのメンバ変数`.loss`を使うことになるので，必ずModelOutputクラスのlossに値を入れて返すようにする．
+- `model/configuration.py`
+ModelConfigが定義されているので必要なコンフィグを追記する．ベースとなるtransformerモデルのidとか，分類ならクラスの数とか．このコンフィグを渡せばモデルを初期化できるようにする．
 
-- `dataset.py`  
-Datasetクラスと，`generate_dataset()`関数が定義されている．
-タスクに応じてDatasetクラスを書き換えて，手元のデータのフォーマットに応じて`generate_dataset()`を書き換えるイメージ．
-  
-Datasetクラスはよくある`__len__()`と`__getitem__()`を定義するもの．  
-`generate_dataset()`は，データのファイルのパスを入力とし，Datasetのインスタンスを返す関数．
+- `model/modeling.py`  
+モデルの定義を書く．モデルの初期化の際にはModelConfigのみを受け取り，そのメンバ変数を参照しながら初期化していく．forward()は引数のlabels=が与えられたらlossまで計算し，ModelOutputのインスタンスに入れて返す，
 
-※ ベースの実装はローカルのファイルからデータを読み込むことを想定したものになっている．Huggingface datasetsから読み込む場合に対応していないが，おそらく大した修正にはならないはず（普段使わないのでよく分からない）．
+- `model/dataset.py`  
+タスクに応じてDatasetクラスを書き換える．generate_dataset()関数は，手元のデータのフォーマットを整形してDatasetクラスに渡すために使う．
+
+- `train.py`
+argparseの設定を適宜追記する．特に，ModelConfigを変えた場合にはこれのインスタンスを作るところを追記する．  
+訓練のループに関しては特に変えなくて良いはず．
 
 ### 訓練中の表示
 モデルの訓練が回っているときには，tqdmによるプログレスが表示される．
 
-フォーマットの例を次に示す．
+フォーマットは
 ```
 [Epoch 0] [TRAIN]:  12%|█▏        | 520/4387 [02:31<20:56,  3.08it/s, loss=2.56, lr=7.8e-6]
 もしくは
@@ -33,19 +34,17 @@ Datasetクラスはよくある`__len__()`と`__getitem__()`を定義するも�
 ```
 のようになっている．現状のエポックと，訓練データか開発データのどちらを処理中か，ミニバッチ単位の損失はいくらか，現在の学習率はいくらか，を知ることができる．学習率を表示しているのは，learning rate schedulerが所望の通りに動作しているかを確認できれば嬉しいかなという動機からである．
 
-
 ### 訓練の結果はどうやって保存されるの
-訓練済みモデルは2種類保存される．開発データで最小lossを達成したcheckpointである`best/`と，指定のエポック終了時点のcheckpointである`last/`が保存される．ファイルはモデルによって変わるとは思う．
+訓練済みモデルは2種類保存される．開発データで最小lossを達成したcheckpointである`best/`と，指定のエポック終了時点のcheckpointである`last/`が保存される．その下にどのようなファイルはモデルによって変わるとは思う．
 
-`my_config.json`には，訓練を実行した際のargparseの情報が含まれているため，どのようなオプション（入力データのパス・シード値など）で訓練を実行したかを後から確認可能である．
+`training_state.json`には，訓練を実行した際のargparseの情報が含まれているため，どのようなオプション（入力データのパス・シード値など）で訓練を実行したかを後から確認可能である．
 
 ```
 model/
 ├── best
 │   ├── config.json
-│   ├── lr.bin
 │   ├── merges.txt
-│   ├── my_config.json
+│   ├── training_state.json
 │   ├── pytorch_model.bin
 │   ├── special_tokens_map.json
 │   ├── tokenizer_config.json
@@ -82,7 +81,12 @@ model/
 
 ### 訓練したモデルをどうやって読み込むの
 
-`best/`や`last/`のディレクトリに生成されるファイルは，`my_config.json`を除いてHuggingfaceの標準的な命名に従う．したがって，トークナイザは`AutoTokenizer.from_pretrained()`に直接ディレクトリのパスを渡せば読み込める．
+モデルには`from_pretrained()`が定義されており，訓練によって出力された`model/best`や`model/last`へのパスを渡せば読み込めるようになっている．トークナイザも同じである．
+```py
+from model.modeling import Model
+from transformers import AutoTokenizer
 
-モデルについても，`modeling.py`を見ればわかるように，クラスメソッドの`from_pretrained()`が定義されている．これにより，`BertModel`などのHuggingface標準のモデルと同じインターフェイスで読み込むことが可能である（`save_pretrained()`も同様）．
-
+path = 'model/best'
+model = Model.from_pretrained(path)
+tokenizer = AutoTokenizer.from_pretrained(path)
+```
