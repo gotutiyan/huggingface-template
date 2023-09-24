@@ -71,11 +71,11 @@ def valid(model,
     return {k: v/len(loader) for k, v in log.items()}
 
 def main(args):
-    config = json.load(open(os.path.join(args.restore_dir, 'training_state.json'))) if args.restore_dir else dict()
+    config = json.load(open(os.path.join(args.restore_dir, 'training_state.json'))) if args.restore_dir else {'argparse': dict()}
     current_epoch = config.get('current_epoch', -1) + 1
     min_valid_loss = config.get('min_valid_loss', float('inf'))
     seed = config['argparse'].get('seed', args.seed)
-    max_len = config['argparse'].get('max_len', args.seed)
+    max_len = config['argparse'].get('max_len', args.max_len)
     log_dict = json.load(open(os.path.join(args.restore_dir, '../log.json'))) if args.restore_dir else dict()
 
     torch.manual_seed(seed)
