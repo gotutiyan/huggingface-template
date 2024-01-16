@@ -13,6 +13,7 @@ import json
 from accelerate import Accelerator
 import numpy as np
 import random
+import datetime
 from model.modeling import Model
 from model.dataset import generate_dataset
 from model.configuration import ModelConfig
@@ -127,7 +128,8 @@ def main(args):
         valid_log = valid(model, valid_loader, epoch, accelerator)
         log_dict[f'Epoch {epoch}'] = {
             'train_log': train_log,
-            'valid_log': valid_log
+            'valid_log': valid_log,
+            'time': str(datetime.datetime.now())
         }
         accelerator.wait_for_everyone()
         if accelerator.is_main_process:
